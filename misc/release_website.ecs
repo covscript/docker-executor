@@ -1,0 +1,138 @@
+import regex, codec.sha256 as sha256
+var win_prefix = regex.build("^([a-zA-Z]:\\\\)(.*)$")
+function regular_path(path)
+    var prefix = new string
+    var res = win_prefix.match(path)
+    var str = new string
+    if !res.empty()
+        prefix = res.str(1)
+        str = res.str(2)
+    else
+        str = path
+    end
+    res = new string
+    var in_sep = false
+    foreach ch in str
+        if ch == '\\' || ch == '/'
+            if !in_sep
+                in_sep = true
+                res += system.path.separator
+            end
+        else
+            in_sep = false
+            res += ch
+        end
+    end
+    swap(str, res)
+    res = new string
+    if str[0] == system.path.separator
+        res += system.path.separator
+    end
+    str = str.split({system.path.separator})
+    foreach it in str
+        if !it.empty() && it != "."
+            res += it + system.path.separator
+        end
+    end
+    res.cut(1)
+    return prefix + res
+end
+var filter_reg = regex.build("^(.*)\\.([^/\\\\.]*)$")
+var path_reg = regex.build("^(.*?)([^/\\\\]*)$")
+function file_stat(path)
+    var r = filter_reg.match(path)
+    if r.size() > 1
+        var str = r.str(1)
+        var e = path_reg.match(str)
+        if e.size() > 1
+            return {
+                "sha256": sha256.hash_file(path),
+                "mtime": system.file.mtime(path),
+                "path": e.str(1),
+                "name": e.str(2),
+                "ext": r.str(2)
+            }.to_hash_map()
+        else
+            return {
+                "sha256": sha256.hash_file(path),
+                "mtime": system.file.mtime(path),
+                "path": ".",
+                "name": r.str(0),
+                "ext": r.str(2)
+            }.to_hash_map()
+        end
+    else
+        return {
+            "sha256": sha256.hash_file(path),
+            "mtime": system.file.mtime(path),
+            "path": ".",
+            "name": r.str(0),
+            "ext": ""
+        }.to_hash_map()
+    end
+end
+var html_files = new array
+function scan_path(path, target)
+    system.path.mkdir_p(target)
+    var entries = system.path.scan(path)
+    foreach it in entries
+        if it.type != system.path.type.dir
+            var fp = regular_path(path + system.path.separator + it.name)
+            var stat = file_stat(fp)
+            switch stat.ext
+                case "html"
+                    html_files.push_back(fp : target + system.path.separator + stat.name + ".html")
+                end
+                case "css"
+                    system.file.copy(fp, target + system.path.separator + stat.name + "_" + stat.sha256 + ".css")
+                end
+                case "js"
+                    system.file.copy(fp, target + system.path.separator + stat.name + "_" + stat.sha256 + ".js")
+                end
+                default
+                    system.file.copy(fp, target + system.path.separator + it.name)
+                end
+            end
+        else
+            if it.name != "." && it.name != ".."
+                scan_path(path + system.path.separator + it.name, target + system.path.separator + it.name)
+            end
+        end
+    end
+end
+var source_path = regular_path(context.cmd_args[1])
+var target_path = regular_path(context.cmd_args[2])
+scan_path(source_path, target_path)
+foreach html in html_files
+    var ifs = iostream.ifstream(html.first)
+    var ofs = iostream.ofstream(html.second)
+    loop
+        var line = ifs.getline()
+        if !ifs.good() && ifs.eof()
+            break
+        end
+        var reg = regex.build("(.*(href|src)\\s*=\\s*\")([^\"]*)(\".*)")
+        var res = reg.search(line)
+        if !res.empty()
+            var stat = file_stat(res.str(3))
+            if stat != null
+                if stat.ext == "css" || stat.ext == "js"
+                    stat.path = regular_path(stat.path)
+                    var source = source_path + system.path.separator + stat.path + system.path.separator + stat.name + "." + stat.ext
+                    if system.file.exist(source)
+                        var target = stat.path + system.path.separator + stat.name + "_" + sha256.hash_file(source) + "." + stat.ext
+                        foreach i in range(target.size)
+                            if target[i] == '\\'
+                                target.assign(i, '/')
+                            end
+                        end
+                        system.out.println("In " + html.first + ": replacing " + res.str(3) + " with " + target)
+                        ofs.println(res.str(1) + target + res.str(4))
+                        continue
+                    end
+                end
+            end
+        end
+        ofs.println(line)
+    end
+end

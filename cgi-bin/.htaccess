@@ -1,0 +1,6 @@
+Options +ExecCGI
+SetHandler cgi-script
+DirectoryIndex executor
+RewriteEngine on
+RewriteBase /executor
+RewriteRule ^[^/]+/(.*)$ executor?$1

@@ -1,0 +1,4 @@
+#!/bin/bash
+COVSCRIPT_CGI_PATH=/var/www/cgi-bin
+echo -ne 'Content-type: text/html\n\n'
+cat - | sudo cs $COVSCRIPT_CGI_PATH/main.csc ${QUERY_STRING} 2>&1
