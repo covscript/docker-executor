@@ -38,7 +38,26 @@ var table_name = context.cmd_args[1], concurrent_limit = context.cmd_args[2].to_
 # CREATE TABLE INSTANCE(ID VARCHAR(255), STATE VARCHAR(255), DATA TEXT, TIME VARCHAR(255))
 # CREATE TABLE RESULT(ID VARCHAR(255), DATA LONGTEXT)
 var db = mysql.connect_str(conn_str)
+
+function retiring_records()
+    var data = db.exec("SELECT ID, STATE, TIME FROM INSTANCE")
+    foreach it in data
+        it[2].data = base64.decode(it[2].data)
+    end
+    foreach it in data
+        if it[1].data != "PREPARE" && record_expired(it[2].data)
+            if it[1].data == "WORKING"
+                process.exec("docker", {"stop", "-t", "0", it[0].data}).wait()
+            end
+            log("Retiring instance " + it[0].data + " by expires time " + expire_time + "s")
+            db.just_exec("DELETE FROM INSTANCE WHERE ID=\"" + it[0].data + "\"")
+            db.just_exec("DELETE FROM RESULT WHERE ID=\"" + it[0].data + "\"")
+        end
+    end
+end
+
 var stmt = db.prepare("SELECT DISTINCT COUNT(ID) FROM " + table_name + " WHERE STATE=\'WORKING\'")
+
 loop
     var current = stmt.exec()[0][0].data.to_number()
     if current < concurrent_limit
@@ -46,6 +65,7 @@ loop
         break
     else
         log("Queueing: " + command + ", remaining " + current)
+        retiring_records()
         runtime.delay(500)
     end
 end

@@ -74,10 +74,10 @@ function get_image_blob(db, sql)
 end
 
 function print_welcome()
-    system.out.println("<p>Welcome to This Server!</p>")
+    system.out.println("<p>Welcome to [Application Name] Server!</p>")
     system.out.println("<p>This is backend executor of Server, please visit <a href=\"/index.html\">main page</a>.</p>")
     system.out.println("<p>Backend executor is powered by <a href=\"https://unicov.cn/covscript/\">Covariant Script</a>.</p>")
-    system.out.println("<p>Copyright (C) Michael Lee 2022</p>")
+    system.out.println("<p>Copyright (C) [Name] [Year]</p>")
 end
 
 if context.cmd_args.size == 1
