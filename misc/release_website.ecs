@@ -29,6 +29,9 @@ function regular_path(path)
         res += system.path.separator
     end
     str = str.split({system.path.separator})
+    if str[0] == "."
+        res = "." + system.path.separator + res
+    end
     foreach it in str
         if !it.empty() && it != "."
             res += it + system.path.separator
@@ -111,8 +114,8 @@ foreach html in html_files
         if !ifs.good() && ifs.eof()
             break
         end
-        var reg = regex.build("(.*(href|src)\\s*=\\s*\")([^\"]*)(\".*)")
-        var res = reg.search(line)
+        var reg = regex.build("^(.*(\"|\'))([^\"]+\\.(js|css))((\"|\').*)$")
+        var res = reg.match(line)
         if !res.empty()
             var stat = file_stat(res.str(3))
             if stat != null
@@ -127,7 +130,7 @@ foreach html in html_files
                             end
                         end
                         system.out.println("In " + html.first + ": replacing " + res.str(3) + " with " + target)
-                        ofs.println(res.str(1) + target + res.str(4))
+                        ofs.println(res.str(1) + target + res.str(5))
                         continue
                     end
                 end
